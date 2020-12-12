@@ -23,11 +23,10 @@ def get_sha1_digest(file):
     return sha1.hexdigest()
 
 
-def check_updates():
+def check_updates(install_dir):
     tool_path = os.path.join(install_dir, 'flashmate')
     old_sha1 = get_sha1_digest(os.path.join(tool_path, 'flashmate.jar'))
-    url = urllib.parse.urljoin(ARTIFACTORY_URL, 'api', 'storage', 'esr-flashmate-local',
-                        'latest', 'flashmate.jar')
+    url = urllib.parse.urljoin(ARTIFACTORY_URL, 'api/storage/esr-flashmate-local/latest/flashmate.jar')
     r = requests.get(url)
     sha1 = json.loads(r.content)['checksums']['sha1']
     return old_sha1 != sha1
@@ -47,6 +46,8 @@ def install(install_dir):
         SCRIPT_DIR, '../helpers/flashmate/flashmate'), tool_path)
     shutil.copy(os.path.join(
         SCRIPT_DIR, '../helpers/flashmate/flashmate.bat'), tool_path)
+
+    check_updates(install_dir)
 
 
 @click.command()
