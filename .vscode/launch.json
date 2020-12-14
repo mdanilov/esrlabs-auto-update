@@ -1,12 +1,19 @@
 {
     "configurations": [
         {
+            "name": "Python: install.py",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/esrlabs-auto-update/install.py",
+            "console": "integratedTerminal",
+            "args": ["--install-dir", ".."]
+        },
+        {
             "name": "Python: esrlabs-auto-update.py",
             "type": "python",
             "request": "launch",
-            "program": "${workspaceFolder}/src/esrlabs-auto-update.py",
-            "console": "integratedTerminal",
-            "args": ["--install-dir", "./dist"]
+            "program": "${workspaceFolder}/../esrlabs-auto-update/esrlabs-auto-update.py",
+            "console": "integratedTerminal"
         }
     ]
 }

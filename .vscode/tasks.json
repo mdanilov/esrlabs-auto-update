@@ -1,0 +1,23 @@
+{
+    // See https://go.microsoft.com/fwlink/?LinkId=733558
+    // for the documentation about the tasks.json format
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "generate pip archive",
+            "type": "shell",
+            "command": "python3 setup.py sdist bdist_wheel",
+            "problemMatcher": []
+        },
+        {
+            "label": "Test PyPI",
+            "type": "shell",
+            "command": "python3 -m twine upload -r testpypi dist/*"
+        },
+        {
+            "label": "PyPI",
+            "type": "shell",
+            "command": "python3 -m twine upload dist/*"
+        }
+    ]
+}

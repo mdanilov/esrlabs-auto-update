@@ -1,92 +1,82 @@
 import schedule
-import platform
 import time
-import requests
-import hashlib
-import urllib.parse
-import shutil
-import json
 import os
-import getpass
-from crontab import CronTab
 import logging
+import json
+import argparse
+import sys
 
+from updaters.flashmate import *
+from startup import *
 
-ARTIFACTORY_URL = 'https://artifactory.int.esrlabs.com/artifactory/'
-SCRIPT_DIR = os.path.dirname(__file__)
-INSTALL_DIR = os.path.join(SCRIPT_DIR, '..')
+from appdirs import *
 
-logging.basicConfig(filename='esrlabs-auto-update.log',
-                    encoding='utf-8', level=logging.DEBUG,
+# Defaults
+APP_NAME = 'esrlabs-auto-update'
+APP_AUTHOR = 'esrlabs'
+USER_DATA_DIR = user_data_dir(APP_NAME, APP_AUTHOR)
+download_dir = os.path.join(USER_DATA_DIR, 'downloads')
+config_file = os.path.join(USER_DATA_DIR, 'config.json')
+
+LOG_FILENAME = os.path.join(USER_DATA_DIR, 'esrlabs-auto-update.log')
+LOG_LEVEL = logging.INFO
+
+# Define and parse command line arguments
+parser = argparse.ArgumentParser()
+parser.add_argument('init', nargs='?')
+args = parser.parse_args()
+if args.init and not os.path.exists(args.init):
+    sys.exit("Path does not exists {}".format(args.init))
+
+if os.path.exists(config_file):
+    with open(config_file) as json_file:
+        config = json.load(json_file)
+else:
+    config = {
+        'installPath': os.path.join(user_data_dir, 'esrlabs-tools')
+    }
+
+if args.init:
+    config['installPath'] = args.init
+
+with open(config_file, 'w') as outfile:
+    json.dump(config, outfile, indent=4)
+
+install_dir = config["installPath"]
+
+os.makedirs(user_data_dir, exist_ok=True)
+os.makedirs(install_dir, exist_ok=True)
+os.makedirs(download_dir, exist_ok=True)
+
+logging.basicConfig(filename=LOG_FILENAME,
+                    level=LOG_LEVEL,
                     format='%(asctime)s %(message)s',
                     datefmt='%m/%d/%Y %I:%M:%S %p')
 
 
-def get_sha1_digest(file):
-    BUF_SIZE = 65536
-    sha1 = hashlib.sha1()
-    with open(file, 'rb') as f:
-        while True:
-            data = f.read(BUF_SIZE)
-            if not data:
-                break
-            sha1.update(data)
-    return sha1.hexdigest()
-
-
-def check_updates(install_dir):
+def check_updates_job():
     logging.info('Checking for updates...')
-    tool_path = os.path.join(install_dir, 'flashmate')
-    old_sha1 = get_sha1_digest(os.path.join(tool_path, 'flashmate.jar'))
-    url = urllib.parse.urljoin(
-        ARTIFACTORY_URL, 'api/storage/esr-flashmate-local/latest/flashmate.jar')
-    r = requests.get(url)
-    sha1 = json.loads(r.content)['checksums']['sha1']
-    return old_sha1 != sha1
+    updaters = [Flashmate(download_dir, install_dir)]
+    for updater in updaters:
+        logging.info('Checking: {}'.format(updater.name))
+        updates_available = updater.check_updates()
+        if updates_available:
+            logging.info('Downloading: {}'.format(updater.name))
+            downloaded = updater.download()
+            if downloaded:
+                logging.info('Installing: {}'.format(updater.name))
+                updater.install()
+                logging.info('Successfully installed {}'.format(updater.name))
+            else:
+                logging.warning('Downloading {} failed'.format(updater.name))
+        else:
+            logging.info('No updates')
 
 
-def install(install_dir):
-    logging.info('Installing: flashmate')
-    tool_path = os.path.join(install_dir, 'flashmate')
-    os.makedirs(tool_path, exist_ok=True)
-    files = ['flashmate.jar', 'ChangeLog.md']
-    for file in files:
-        url = urllib.parse.urljoin(
-            ARTIFACTORY_URL, f'esr-flashmate-local/latest/{file}')
-        r = requests.get(url)
-        if r.ok:
-            open(os.path.join(tool_path, file),
-                 'wb').write(r.content)
-    shutil.copy(os.path.join(
-        SCRIPT_DIR, 'helpers/flashmate/flashmate'), tool_path)
-    shutil.copy(os.path.join(
-        SCRIPT_DIR, 'helpers/flashmate/flashmate.bat'), tool_path)
-    logging.info('Successfully installed flashmate')
+set_startup_rules(__file__)
+schedule.every().day.at("01:00").do(check_updates_job)
 
-
-def job():
-    logging.info('Schedule update job')
-    if check_updates(INSTALL_DIR):
-        install(INSTALL_DIR)
-
-
-def set_startup_rules():
-    if platform.system() == 'Linux':
-        command = 'python {} &'.format(__file__)
-        username = getpass.getuser()
-        cron = CronTab(user=username)
-        for job in cron:
-            if job.comment == 'esrlabs-auto-update':
-                cron.remove(job)
-                break
-        job = cron.new(command=command, comment='esrlabs-auto-update')
-        job.every_reboot()
-        cron.write()
-
-
-set_startup_rules()
-schedule.every().day.at("01:00").do(job, 'It is 01:00')
-
+# Loop forever, doing scheduled jobs
 while True:
     schedule.run_pending()
     time.sleep(60)
