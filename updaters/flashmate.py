@@ -4,6 +4,7 @@ import requests
 import os
 import shutil
 import json
+import logging
 
 from utils import *
 from updater import *
@@ -24,9 +25,15 @@ class Flashmate(Updater):
         old_sha1 = get_sha1_digest(jar_file)
         url = urllib.parse.urljoin(
             self.ARTIFACTORY_URL, 'api/storage/esr-flashmate-local/latest/flashmate.jar')
-        r = requests.get(url)
-        sha1 = json.loads(r.content)['checksums']['sha1']
-        return old_sha1 != sha1
+        try:
+            r = requests.get(url)
+            if r.ok:
+                sha1 = json.loads(r.content)['checksums']['sha1']
+                return old_sha1 != sha1
+        except:
+            logging.error('Unexpected error')
+
+        return False
 
     def download(self):
         dst = os.path.join(self.download_path, self.name)
@@ -36,11 +43,16 @@ class Flashmate(Updater):
         for file in files:
             url = urllib.parse.urljoin(
                 self.ARTIFACTORY_URL, 'esr-flashmate-local/latest/{}'.format(file))
-            r = requests.get(url)
-            if r.ok:
-                open(os.path.join(dst, file),
-                     'wb').write(r.content)
-                return True
+            try:
+                r = requests.get(url)
+                if r.ok:
+                    open(os.path.join(dst, file),
+                        'wb').write(r.content)
+                    return True
+            except:
+                logging.error('Unexpected error')
+
+            return False
 
     def install(self):
         return super().install()
