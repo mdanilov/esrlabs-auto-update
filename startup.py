@@ -7,7 +7,7 @@ from crontab import CronTab
 
 def set_startup_rules(filename):
     if platform.system() == 'Linux':
-        command = 'python {} &'.format(os.path.abspath(filename))
+        command = 'nohup python3 {} &'.format(os.path.abspath(filename))
         username = getpass.getuser()
         cron = CronTab(user=username)
         for job in cron:
